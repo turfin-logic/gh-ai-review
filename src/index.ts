@@ -42,7 +42,7 @@ function getHFKey(): string {
 function printBanner() {
   console.log(chalk.cyan(`
 ╔═══════════════════════════════════════╗
-║        🤖 gh-ai-review v1.2.11        ║
+║        🤖 gh-ai-review v1.2.12        ║
 ║   AI-powered PR review by HuggingFace ║
 ╚═══════════════════════════════════════╝
 `));
@@ -86,7 +86,7 @@ function printResult(result: any) {
 program
   .name('gh-ai-review')
   .description('AI-powered GitHub PR code reviewer using Hugging Face (Free)')
-  .version('1.2.11');
+  .version('1.2.12');
 
 program
   .command('review')
@@ -173,7 +173,22 @@ ${result.suggestions?.length ? '### 💡 Suggestions\n' + result.suggestions.map
           c.path && c.line && c.body
         ) || [];
 
-        await github.postReview(prNum, reviewBody, 'COMMENT', validComments);
+        try {
+          await github.postReview(prNum, reviewBody, 'COMMENT', validComments);
+        } catch (error: any) {
+          if (error.message.includes('422')) {
+            console.log(chalk.yellow('\n⚠️ GitHub rejected inline comments (line number mismatch). Falling back to general comment...'));
+            
+            let fallbackBody = reviewBody + '\n\n### 💬 Inline Comments (Fallback)\n';
+            for (const c of validComments) {
+              fallbackBody += `\n**File:** \`${c.path}\` (Line ${c.line})\n> ${c.body}\n`;
+            }
+            
+            await github.postReview(prNum, fallbackBody, 'COMMENT', []);
+          } else {
+            throw error;
+          }
+        }
         spinner.succeed('Review posted to GitHub!');
 
         console.log(chalk.green(`\n✅ Review posted! View at: ${pr.html_url}`));
