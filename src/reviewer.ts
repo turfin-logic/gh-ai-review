@@ -2,6 +2,7 @@ import { PRInfo, PRFile, ReviewResult } from './types.js';
 
 const REVIEW_PROMPT = `You are an expert senior software engineer doing a thorough code review. 
 Analyze the provided PR diff and give detailed, actionable feedback.
+You MUST write your entire review strictly in Professional English. Do not use any other language.
 
 Your review must be structured as valid JSON with this exact format:
 {

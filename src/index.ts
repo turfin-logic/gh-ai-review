@@ -42,7 +42,7 @@ function getHFKey(): string {
 function printBanner() {
   console.log(chalk.cyan(`
 ╔═══════════════════════════════════════╗
-║        🤖 gh-ai-review v1.2.8         ║
+║        🤖 gh-ai-review v1.2.9         ║
 ║   AI-powered PR review by HuggingFace ║
 ╚═══════════════════════════════════════╝
 `));
@@ -86,7 +86,7 @@ function printResult(result: any) {
 program
   .name('gh-ai-review')
   .description('AI-powered GitHub PR code reviewer using Hugging Face (Free)')
-  .version('1.2.8');
+  .version('1.2.9');
 
 program
   .command('review')
