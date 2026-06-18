@@ -18,11 +18,11 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 24
           
       - name: Run AI Code Review
         env:
           HF_API_KEY: ${{ secrets.HF_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          npx -y gh-ai-review@latest review ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --post
+          npx --yes --package gh-ai-review@latest gh-ai-review review ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --post
