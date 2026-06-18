@@ -1,11 +1,16 @@
 {
   "name": "gh-ai-review",
   "version": "1.0.0",
-  "description": "🤖 AI-powered GitHub PR code reviewer using Groq LLM — review PRs instantly from terminal",
+  "description": "AI-powered GitHub PR code reviewer using DeepSeek — review PRs instantly from terminal or GitHub Actions",
   "main": "dist/index.js",
   "bin": {
     "gh-ai-review": "dist/index.js"
   },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
@@ -19,8 +24,9 @@
     "code-review",
     "pull-request",
     "llm",
-    "groq",
-    "llama"
+    "deepseek",
+    "code-reviewer",
+    "automation"
   ],
   "author": "turfin-logic",
   "license": "MIT",
