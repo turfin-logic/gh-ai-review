@@ -1,36 +1,28 @@
-name: AI Code Review
+name: AI PR Review
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize]
 
 jobs:
   ai-review:
-    name: 🤖 AI Code Review
     runs-on: ubuntu-latest
     permissions:
-      pull-requests: write
       contents: read
-
+      pull-requests: write # Required to post comments on the PR
+      
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Setup Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-
-      - name: Install gh-ai-review
-        run: npm install -g gh-ai-review
-
-      - name: Run AI Review
+          node-version: 18
+          
+      - name: Run AI Code Review
         env:
+          HF_API_KEY: ${{ secrets.HF_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: |
-          gh-ai-review review ${{ github.event.pull_request.number }} \
-            --repo ${{ github.repository }} \
-            --post
+          npx gh-ai-review@latest review ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --post

@@ -27,23 +27,23 @@ function getGitHubToken(): string {
   );
 }
 
-function getDeepSeekKey(): string {
-  const key = process.env.DEEPSEEK_API_KEY;
+function getHFKey(): string {
+  const key = process.env.HF_API_KEY;
   if (!key) {
     throw new Error(
-      'DeepSeek API key not found!\n' +
-      'Set DEEPSEEK_API_KEY env variable.\n' +
-      'Get your free key at: https://platform.deepseek.com'
+      'Hugging Face API key not found!\n' +
+      'Set HF_API_KEY env variable.\n' +
+      'Get your FREE key at: https://huggingface.co/settings/tokens'
     );
   }
   return key;
 }
 
 function printBanner() {
-  console.log(chalk.cyan.bold(`
+  console.log(chalk.cyan(`
 ╔═══════════════════════════════════════╗
-║        🤖 gh-ai-review v1.0.0         ║
-║   AI-powered PR review by DeepSeek    ║
+║        🤖 gh-ai-review v1.2.8         ║
+║   AI-powered PR review by HuggingFace ║
 ╚═══════════════════════════════════════╝
 `));
 }
@@ -85,15 +85,15 @@ function printResult(result: any) {
 
 program
   .name('gh-ai-review')
-  .description('🤖 AI-powered GitHub PR code reviewer using DeepSeek')
-  .version('1.0.0');
+  .description('AI-powered GitHub PR code reviewer using Hugging Face (Free)')
+  .version('1.2.8');
 
 program
   .command('review')
   .description('Review a Pull Request with AI')
   .argument('<pr-number>', 'Pull Request number to review')
   .option('-r, --repo <repo>', 'Repository in format owner/repo (default: current repo)')
-  .option('-m, --model <model>', 'DeepSeek model to use', 'deepseek-chat')
+  .option('-m, --model <model>', 'HuggingFace model to use', 'meta-llama/Llama-3.1-8B-Instruct')
   .option('--post', 'Post review as GitHub comment (default: just show locally)')
   .option('--dry-run', 'Show what would be posted without actually posting')
   .action(async (prNumber: string, options: { repo?: string; model: string; post?: boolean; dryRun?: boolean }) => {
@@ -102,24 +102,23 @@ program
     try {
       // Get tokens
       const githubToken = getGitHubToken();
-      const deepseekKey = getDeepSeekKey();
+      const hfKey = getHFKey();
 
       // Get repo info
       let owner: string, repo: string;
       if (options.repo) {
-        const parsed = GitHubClient.parseRepoUrl(options.repo);
-        owner = parsed.owner;
-        repo = parsed.repo;
+        [owner, repo] = options.repo.split('/');
       } else {
-        // Try to detect from git remote
         try {
-          const remoteUrl = execSync('git remote get-url origin', { encoding: 'utf8' }).trim();
-          const match = remoteUrl.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
-          if (!match) throw new Error('Cannot parse remote URL');
+          const remoteUrl = execSync('git config --get remote.origin.url', { stdio: 'pipe' }).toString().trim();
+          const match = remoteUrl.match(/github\.com[:/](.+)\/(.+)\.git/);
+          if (!match) {
+            throw new Error('Could not parse GitHub repo from git remote origin url.');
+          }
           owner = match[1];
           repo = match[2];
-        } catch {
-          throw new Error('Cannot detect repo. Use --repo owner/repo flag');
+        } catch (e: any) {
+          throw new Error('Cannot detect repo. You are not in a git repository. Use --repo owner/repo flag.');
         }
       }
 
@@ -131,7 +130,7 @@ program
       console.log(chalk.dim(`Model: ${options.model}\n`));
 
       const github = new GitHubClient({ token: githubToken, owner, repo });
-      const reviewer = new AIReviewer(deepseekKey, options.model);
+      const reviewer = new AIReviewer(hfKey, options.model);
 
       // Fetch PR data
       let spinner = ora('Fetching PR details from GitHub...').start();
@@ -145,9 +144,9 @@ program
       console.log(chalk.dim(`  Changed files: ${files.length} | +${pr.additions} -${pr.deletions}`));
 
       // AI Review
-      spinner = ora('🤖 DeepSeek is analyzing the code...').start();
+      let aiSpinner = ora(`🤖 Hugging Face is analyzing the code...`).start();
       const result = await reviewer.reviewPR(pr, files, diff);
-      spinner.succeed('AI review complete!');
+      aiSpinner.succeed('AI review complete!');
 
       // Display result
       printResult(result);
@@ -167,7 +166,7 @@ ${result.summary}
 ${result.suggestions?.length ? '### 💡 Suggestions\n' + result.suggestions.map((s: string) => `- ${s}`).join('\n') : ''}
 
 ---
-*Powered by DeepSeek AI • [Install gh-ai-review](https://github.com/turfin-logic/gh-ai-review)*`;
+*Powered by Hugging Face AI (Free) • [Install gh-ai-review](https://github.com/turfin-logic/gh-ai-review)*`;
 
         // Filter out invalid inline comments (need line numbers in diff)
         const validComments = result.comments?.filter((c: any) =>
@@ -184,9 +183,11 @@ ${result.suggestions?.length ? '### 💡 Suggestions\n' + result.suggestions.map
         console.log(chalk.dim('\nTip: Use --post flag to automatically post review to GitHub PR!'));
       }
 
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error(chalk.red('\n❌ Error: ') + message);
+    } catch (error: any) {
+      console.error(chalk.red(`\n❌ Error: ${error.message || error}`));
+      if (error.cause) {
+        console.error(chalk.red(`   Cause: ${error.cause}`));
+      }
       process.exit(1);
     }
   });
@@ -197,13 +198,13 @@ program
   .action(() => {
     printBanner();
     const githubOk = !!(process.env.GITHUB_TOKEN || process.env.GH_TOKEN);
-    const deepseekOk = !!process.env.DEEPSEEK_API_KEY;
+    const hfOk = !!process.env.HF_API_KEY;
 
     console.log(chalk.bold('Configuration Status:'));
     console.log(`  GitHub Token: ${githubOk ? chalk.green('✅ Set') : chalk.red('❌ Not set (set GITHUB_TOKEN)')}`);
-    console.log(`  DeepSeek Key: ${deepseekOk ? chalk.green('✅ Set') : chalk.red('❌ Not set (set DEEPSEEK_API_KEY)')}`);
-    console.log('\nGet DeepSeek API key: ' + chalk.blue('https://platform.deepseek.com'));
-    console.log('Get GitHub token:     ' + chalk.blue('https://github.com/settings/tokens'));
+    console.log(`  HF API Key:   ${hfOk ? chalk.green('✅ Set') : chalk.red('❌ Not set (set HF_API_KEY)')}`);
+    console.log('\nGet FREE HuggingFace key: ' + chalk.blue('https://huggingface.co/settings/tokens'));
+    console.log('Get GitHub token:         ' + chalk.blue('https://github.com/settings/tokens'));
   });
 
 // Handle called as gh extension (gh ai-review review <pr>)
