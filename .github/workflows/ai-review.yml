@@ -25,4 +25,4 @@ jobs:
           HF_API_KEY: ${{ secrets.HF_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          npx gh-ai-review@latest review ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --post
+          npx -y gh-ai-review@latest review ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --post
