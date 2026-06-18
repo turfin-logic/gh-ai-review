@@ -42,7 +42,7 @@ function getHFKey(): string {
 function printBanner() {
   console.log(chalk.cyan(`
 ╔═══════════════════════════════════════╗
-║        🤖 gh-ai-review v1.2.10        ║
+║        🤖 gh-ai-review v1.2.11        ║
 ║   AI-powered PR review by HuggingFace ║
 ╚═══════════════════════════════════════╝
 `));
@@ -86,7 +86,7 @@ function printResult(result: any) {
 program
   .name('gh-ai-review')
   .description('AI-powered GitHub PR code reviewer using Hugging Face (Free)')
-  .version('1.2.10');
+  .version('1.2.11');
 
 program
   .command('review')
@@ -173,7 +173,7 @@ ${result.suggestions?.length ? '### 💡 Suggestions\n' + result.suggestions.map
           c.path && c.line && c.body
         ) || [];
 
-        await github.postReview(prNum, reviewBody, result.severity, validComments);
+        await github.postReview(prNum, reviewBody, 'COMMENT', validComments);
         spinner.succeed('Review posted to GitHub!');
 
         console.log(chalk.green(`\n✅ Review posted! View at: ${pr.html_url}`));

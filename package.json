@@ -1,6 +1,6 @@
 {
   "name": "gh-ai-review",
-  "version": "1.2.10",
+  "version": "1.2.11",
   "description": "AI-powered GitHub PR code reviewer using DeepSeek — review PRs instantly from terminal or GitHub Actions",
   "main": "dist/index.js",
   "bin": {
