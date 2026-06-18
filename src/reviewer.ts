@@ -79,27 +79,47 @@ ${truncatedDiff}
 
 Respond with ONLY valid JSON. [/INST]`;
 
-    const response = await fetch(this.baseUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: this.model,
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 2048,
-        temperature: 0.2,
-      }),
-    });
+    let response: Response | null = null;
+    let errText = '';
+    const maxRetries = 3;
 
-    if (!response.ok) {
-      const errText = await response.text();
-      // If model is loading, try fallback model
-      if (response.status === 503) {
-        throw new Error('Model is loading on Hugging Face servers. Try again in 30 seconds.');
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        response = await fetch(this.baseUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: this.model,
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: 2048,
+            temperature: 0.2,
+          }),
+        });
+
+        if (response.ok) {
+          break; // Success
+        }
+
+        errText = await response.text();
+        // Only retry on 503 (Loading/Unavailable), 504 (Gateway Timeout), 524 (A timeout occurred)
+        if (![503, 504, 524].includes(response.status)) {
+          break; 
+        }
+      } catch (e: any) {
+        errText = e.message;
       }
-      throw new Error(`Hugging Face API error ${response.status}: ${errText}`);
+
+      if (attempt < maxRetries) {
+        console.log(`\n⏳ Hugging Face API busy or loading (Attempt ${attempt}/${maxRetries}). Auto-retrying in 15 seconds...`);
+        await new Promise(r => setTimeout(r, 15000));
+      }
+    }
+
+    if (!response || !response.ok) {
+      throw new Error(`Hugging Face API error (after ${maxRetries} attempts): ${response?.status || 'Network Error'} - ${errText}`);
     }
 
     const result = await response.json() as any;
