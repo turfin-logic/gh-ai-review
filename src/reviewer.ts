@@ -35,23 +35,43 @@ Score: 0-100 (>=80 = APPROVE, 60-79 = COMMENT, <60 = REQUEST_CHANGES)
 
 Respond ONLY with valid JSON, no markdown, no extra text.`;
 
-// Free Hugging Face models good for code review
+/**
+ * Array of supported free Hugging Face models optimized for code review.
+ * @constant {string[]}
+ */
 const HF_MODELS = [
   'meta-llama/Llama-3.1-8B-Instruct',
   'Qwen/Qwen2.5-72B-Instruct',
   'mistralai/Mixtral-8x7B-Instruct-v0.1',
 ];
 
+/**
+ * AIReviewer class handles interacting with the Hugging Face Router API
+ * to generate automated PR code reviews based on diffs.
+ */
 export class AIReviewer {
   private apiKey: string;
   private model: string;
   private baseUrl = 'https://router.huggingface.co/v1/chat/completions';
 
+  /**
+   * Creates a new instance of AIReviewer.
+   * @param {string} apiKey - Hugging Face API token.
+   * @param {string} [model=HF_MODELS[0]] - Model identifier to use for inference.
+   */
   constructor(apiKey: string, model = HF_MODELS[0]) {
     this.apiKey = apiKey;
     this.model = model;
   }
 
+  /**
+   * Generates a code review for a given PR and diff.
+   * @param {PRInfo} pr - PR metadata (title, author, base/head refs, etc).
+   * @param {PRFile[]} files - List of changed files.
+   * @param {string} diff - The actual git diff content.
+   * @returns {Promise<ReviewResult>} Parsed JSON review containing score, summary, and comments.
+   * @throws {Error} If the API request fails after maximum retries.
+   */
   async reviewPR(pr: PRInfo, files: PRFile[], diff: string): Promise<ReviewResult> {
     const maxDiffLength = 8000;
     const truncatedDiff = diff.length > maxDiffLength
