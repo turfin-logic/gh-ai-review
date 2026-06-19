@@ -1,6 +1,6 @@
-# 🤖 gh-ai-review
+# gh-ai-review
 
-> AI-powered GitHub Pull Request code reviewer — powered by **DeepSeek AI**
+> AI-powered GitHub Pull Request code reviewer — powered by **Hugging Face (Llama-3)**
 
 [![npm version](https://img.shields.io/npm/v/gh-ai-review.svg)](https://npmjs.com/package/gh-ai-review)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -12,18 +12,18 @@ Review any Pull Request instantly with AI from your terminal. No more waiting fo
 
 ## ✨ Features
 
-- 🧠 **AI-Powered** — Uses DeepSeek-V3 (GPT-4 level, completely free)
+- 🧠 **AI-Powered** — Uses Llama-3.1-8B-Instruct via Hugging Face (completely free)
 - 🐛 **Bug Detection** — Spots logic errors, null pointers, async issues
 - 🔒 **Security Scanning** — Finds hardcoded secrets, injection vulnerabilities
 - ⚡ **Performance Analysis** — Detects memory leaks, blocking ops, N+1 queries
 - 📊 **Quality Score** — 0-100 score with APPROVE/REQUEST_CHANGES/COMMENT decision
 - 💬 **Inline Comments** — Posts directly on GitHub PR diff lines
 - 🤖 **GitHub Actions** — Auto-review every PR automatically
-- 🚀 **Works everywhere** — CLI + GitHub Actions + `gh` extension
+- ⚡ **Works everywhere** — CLI + GitHub Actions + `gh` extension
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Install
 
@@ -34,8 +34,8 @@ npm install -g gh-ai-review
 ### Set API Keys
 
 ```bash
-# Get free key from https://platform.deepseek.com
-export DEEPSEEK_API_KEY=your_key_here
+# Get free access token from https://huggingface.co/settings/tokens
+export HF_API_KEY=your_token_here
 
 # GitHub token (already set if using gh CLI)
 export GITHUB_TOKEN=your_github_token
@@ -82,10 +82,10 @@ jobs:
       - run: gh-ai-review review ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --post
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          HF_API_KEY: ${{ secrets.HF_API_KEY }}
 ```
 
-> **Add secret:** Go to `Settings → Secrets → DEEPSEEK_API_KEY` in your repo.
+> **Add secret:** Go to `Settings → Secrets → HF_API_KEY` in your repo.
 
 ---
 
@@ -94,11 +94,11 @@ jobs:
 ```
 ╔═══════════════════════════════════════╗
 ║        🤖 gh-ai-review v1.0.0         ║
-║   AI-powered PR review by DeepSeek    ║
+║   AI-powered PR review by Hugging Face    ║
 ╚═══════════════════════════════════════╝
 
 ✅ Fetched PR #42: "Add user authentication"
-🤖 DeepSeek is analyzing the code...
+🤖 Hugging Face is analyzing the code...
 ✅ AI review complete!
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -133,7 +133,7 @@ jobs:
 
 | Env Variable | Required | Description |
 |---|---|---|
-| `DEEPSEEK_API_KEY` | ✅ Yes | Get free at [platform.deepseek.com](https://platform.deepseek.com) |
+| `HF_API_KEY` | ✅ Yes | Get free at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) |
 | `GITHUB_TOKEN` | ✅ Yes | GitHub personal access token or `gh auth login` |
 
 ### Options
@@ -143,7 +143,7 @@ gh-ai-review review <pr-number> [options]
 
 Options:
   -r, --repo <owner/repo>   Repository (default: auto-detect from git)
-  -m, --model <model>       DeepSeek model (default: deepseek-chat)
+  -m, --model <model>       Hugging Face model (default: meta-llama/Llama-3.1-8B-Instruct)
   --post                    Post review to GitHub PR
   --dry-run                 Preview without posting
 ```
@@ -152,9 +152,9 @@ Options:
 
 ## 🆓 Free API
 
-**DeepSeek is free for the first $5 credits** — enough for **500+ PR reviews**.
+**Hugging Face offers free serverless inference APIs**.
 
-Get your key: [platform.deepseek.com](https://platform.deepseek.com)
+Get your token: [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
 
 ---
 
@@ -164,6 +164,6 @@ MIT © [turfin-logic](https://github.com/turfin-logic)
 
 ---
 
-## ⭐ Star this repo if it helped you!
+## Star this repo if it helped you!
 
 Built with ❤️ by [@turfin-logic](https://github.com/turfin-logic)

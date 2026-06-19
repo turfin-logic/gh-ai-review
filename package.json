@@ -1,7 +1,7 @@
 {
   "name": "gh-ai-review",
-  "version": "1.2.13",
-  "description": "AI-powered GitHub PR code reviewer using DeepSeek — review PRs instantly from terminal or GitHub Actions",
+  "version": "1.2.14",
+  "description": "AI-powered GitHub PR code reviewer using Hugging Face — review PRs instantly from terminal or GitHub Actions",
   "main": "dist/index.js",
   "bin": {
     "gh-ai-review": "dist/index.js"
@@ -24,7 +24,7 @@
     "code-review",
     "pull-request",
     "llm",
-    "deepseek",
+    "huggingface",
     "code-reviewer",
     "automation"
   ],
