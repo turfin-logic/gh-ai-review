@@ -85,8 +85,12 @@ Respond with ONLY valid JSON. [/INST]`;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
+
         response = await fetch(this.baseUrl, {
           method: 'POST',
+          signal: controller.signal,
           headers: {
             'Authorization': `Bearer ${this.apiKey}`,
             'Content-Type': 'application/json',
@@ -98,6 +102,7 @@ Respond with ONLY valid JSON. [/INST]`;
             temperature: 0.2,
           }),
         });
+        clearTimeout(timeoutId);
 
         if (response.ok) {
           break; // Success
