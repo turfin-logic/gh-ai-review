@@ -1,8 +1,8 @@
-import OpenAI from 'openai';
 import { PRInfo, PRFile, ReviewResult } from './types.js';
 
 const REVIEW_PROMPT = `You are an expert senior software engineer doing a thorough code review. 
 Analyze the provided PR diff and give detailed, actionable feedback.
+You MUST write your entire review strictly in Professional English. Do not use any other language.
 
 Your review must be structured as valid JSON with this exact format:
 {
@@ -24,89 +24,148 @@ Your review must be structured as valid JSON with this exact format:
 }
 
 Review criteria:
-1. 🐛 **Bugs**: Logic errors, off-by-one, null pointer risks, async/await issues
-2. 🔒 **Security**: SQL injection, XSS, hardcoded secrets, insecure dependencies
-3. ⚡ **Performance**: Unnecessary loops, memory leaks, blocking operations
-4. 📝 **Code Quality**: Naming conventions, DRY principle, SOLID principles
-5. 🧪 **Testing**: Missing tests for critical paths, edge cases not covered
-6. 📚 **Documentation**: Missing JSDoc/comments for complex logic
+1. Bugs: Logic errors, off-by-one, null pointer risks, async/await issues
+2. Security: SQL injection, XSS, hardcoded secrets, insecure dependencies
+3. Performance: Unnecessary loops, memory leaks, blocking operations
+4. Code Quality: Naming conventions, DRY principle, SOLID principles
+5. Testing: Missing tests for critical paths, edge cases not covered
+6. Documentation: Missing comments for complex logic
 
 Score: 0-100 (>=80 = APPROVE, 60-79 = COMMENT, <60 = REQUEST_CHANGES)
 
 Respond ONLY with valid JSON, no markdown, no extra text.`;
 
-export class AIReviewer {
-  private client: OpenAI;
-  private model: string;
+/**
+ * Array of supported free Hugging Face models optimized for code review.
+ * @constant {string[]}
+ */
+const HF_MODELS = [
+  'meta-llama/Llama-3.1-8B-Instruct',
+  'Qwen/Qwen2.5-72B-Instruct',
+  'mistralai/Mixtral-8x7B-Instruct-v0.1',
+];
 
-  constructor(apiKey: string, model = 'deepseek-chat') {
-    // DeepSeek is OpenAI-compatible — just point to their base URL
-    this.client = new OpenAI({
-      apiKey,
-      baseURL: 'https://api.deepseek.com/v1',
-    });
+/**
+ * AIReviewer class handles interacting with the Hugging Face Router API
+ * to generate automated PR code reviews based on diffs.
+ */
+export class AIReviewer {
+  private apiKey: string;
+  private model: string;
+  private baseUrl = 'https://router.huggingface.co/v1/chat/completions';
+
+  /**
+   * Creates a new instance of AIReviewer.
+   * @param {string} apiKey - Hugging Face API token.
+   * @param {string} [model=HF_MODELS[0]] - Model identifier to use for inference.
+   */
+  constructor(apiKey: string, model = HF_MODELS[0]) {
+    this.apiKey = apiKey;
     this.model = model;
   }
 
+  /**
+   * Generates a code review for a given PR and diff.
+   * @param {PRInfo} pr - PR metadata (title, author, base/head refs, etc).
+   * @param {PRFile[]} files - List of changed files.
+   * @param {string} diff - The actual git diff content.
+   * @returns {Promise<ReviewResult>} Parsed JSON review containing score, summary, and comments.
+   * @throws {Error} If the API request fails after maximum retries.
+   */
   async reviewPR(pr: PRInfo, files: PRFile[], diff: string): Promise<ReviewResult> {
-    // Truncate diff if too large
-    const maxDiffLength = 20000;
+    const maxDiffLength = 8000;
     const truncatedDiff = diff.length > maxDiffLength
-      ? diff.substring(0, maxDiffLength) + '\n\n... [diff truncated for length] ...'
+      ? diff.substring(0, maxDiffLength) + '\n\n... [diff truncated] ...'
       : diff;
 
     const filesSummary = files.map(f =>
       `${f.filename} (${f.status}: +${f.additions}/-${f.deletions})`
     ).join('\n');
 
-    const userMessage = `
+    const prompt = `<s>[INST] ${REVIEW_PROMPT}
+
 ## PR #${pr.number}: ${pr.title}
+Author: ${pr.user.login}
+Branch: ${pr.head.ref} to ${pr.base.ref}
+Changes: +${pr.additions} -${pr.deletions} across ${pr.changed_files} files
 
-**Author:** ${pr.user.login}
-**Branch:** ${pr.head.ref} → ${pr.base.ref}
-**Changes:** +${pr.additions} -${pr.deletions} lines across ${pr.changed_files} files
+PR Description: ${pr.body || 'No description provided.'}
 
-**PR Description:**
-${pr.body || 'No description provided.'}
-
-**Files Changed:**
+Files Changed:
 ${filesSummary}
 
-**Diff:**
-\`\`\`diff
+Diff:
 ${truncatedDiff}
-\`\`\`
-`;
 
-    const completion = await this.client.chat.completions.create({
-      messages: [
-        { role: 'system', content: REVIEW_PROMPT },
-        { role: 'user', content: userMessage },
-      ],
-      model: this.model,
-      temperature: 0.3,
-      max_tokens: 4096,
-    });
+Respond with ONLY valid JSON. [/INST]`;
 
-    const content = completion.choices[0]?.message?.content || '{}';
+    let response: Response | null = null;
+    let errText = '';
+    const maxRetries = 3;
 
-    // Parse JSON response
-    let result: ReviewResult;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
+
+        response = await fetch(this.baseUrl, {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: this.model,
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: 2048,
+            temperature: 0.2,
+          }),
+        });
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          break; // Success
+        }
+
+        errText = await response.text();
+        // Only retry on 503 (Loading/Unavailable), 504 (Gateway Timeout), 524 (A timeout occurred)
+        if (![503, 504, 524].includes(response.status)) {
+          break; 
+        }
+      } catch (e: any) {
+        errText = e.message;
+      }
+
+      if (attempt < maxRetries) {
+        console.log(`\n⏳ Hugging Face API busy or loading (Attempt ${attempt}/${maxRetries}). Auto-retrying in 15 seconds...`);
+        await new Promise(r => setTimeout(r, 15000));
+      }
+    }
+
+    if (!response || !response.ok) {
+      throw new Error(`Hugging Face API error (after ${maxRetries} attempts): ${response?.status || 'Network Error'} - ${errText}`);
+    }
+
+    const result = await response.json() as any;
+    let content = result.choices?.[0]?.message?.content || result[0]?.generated_text || result.generated_text || '{}';
+
+    let parsedResult: ReviewResult;
     try {
-      // Extract JSON if wrapped in markdown code block
-      const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-      const jsonStr = jsonMatch ? jsonMatch[1] : content;
-      result = JSON.parse(jsonStr.trim());
+      // Extract JSON from response
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      const jsonStr = jsonMatch ? jsonMatch[0] : content;
+      parsedResult = JSON.parse(jsonStr.trim());
     } catch {
-      result = {
-        summary: content.substring(0, 500),
+      parsedResult = {
+        summary: content.substring(0, 500) || 'Review generated but could not be parsed.',
         score: 70,
         severity: 'COMMENT',
         comments: [],
-        suggestions: ['Review could not be fully parsed. Raw AI output above.'],
+        suggestions: ['Run again if the model was still loading.'],
       };
     }
 
-    return result;
+    return parsedResult;
   }
 }
