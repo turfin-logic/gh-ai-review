@@ -11,6 +11,7 @@ export class GitHubClient {
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       ...options,
+      signal: AbortSignal.timeout(30000),
       headers: {
         'Authorization': `token ${this.config.token}`,
         'Accept': 'application/vnd.github.v3+json',
@@ -35,15 +36,23 @@ export class GitHubClient {
   }
 
   async getPRFiles(prNumber: number): Promise<PRFile[]> {
-    return this.request<PRFile[]>(
-      `/repos/${this.config.owner}/${this.config.repo}/pulls/${prNumber}/files`
-    );
+    const files: PRFile[] = [];
+    for (let page = 1; page <= 100; page++) {
+      const batch = await this.request<PRFile[]>(
+        `/repos/${this.config.owner}/${this.config.repo}/pulls/${prNumber}/files?per_page=100&page=${page}`
+      );
+      if (!Array.isArray(batch)) throw new Error('Invalid PR file response');
+      files.push(...batch);
+      if (batch.length < 100) return files;
+    }
+    throw new Error('PR file list exceeds the supported pagination limit');
   }
 
   async getPRDiff(prNumber: number): Promise<string> {
     const response = await fetch(
       `${this.baseUrl}/repos/${this.config.owner}/${this.config.repo}/pulls/${prNumber}`,
       {
+        signal: AbortSignal.timeout(30000),
         headers: {
           'Authorization': `token ${this.config.token}`,
           'Accept': 'application/vnd.github.v3.diff',
@@ -51,6 +60,7 @@ export class GitHubClient {
         },
       }
     );
+    if (!response.ok) throw new Error(`GitHub diff request failed: HTTP ${response.status}`);
     return response.text();
   }
 
@@ -90,7 +100,7 @@ export class GitHubClient {
 
   static parseRepoUrl(repoFullName: string): { owner: string; repo: string } {
     const parts = repoFullName.split('/');
-    if (parts.length !== 2) {
+    if (parts.length !== 2 || !/^[A-Za-z0-9][A-Za-z0-9-]*$/.test(parts[0]) || !/^[A-Za-z0-9_.-]+$/.test(parts[1]) || ['.', '..'].includes(parts[1])) {
       throw new Error(`Invalid repo format. Expected "owner/repo", got: ${repoFullName}`);
     }
     return { owner: parts[0], repo: parts[1] };

@@ -1,7 +1,7 @@
 {
   "name": "gh-ai-review",
   "version": "1.2.15",
-  "description": "AI-powered GitHub PR code reviewer using Hugging Face — review PRs instantly from terminal or GitHub Actions",
+  "description": "Experimental CLI for advisory GitHub PR reviews through Hugging Face",
   "main": "dist/index.js",
   "bin": {
     "gh-ai-review": "dist/index.js"
@@ -9,12 +9,16 @@
   "files": [
     "dist/",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "docs/claim-evidence.md"
   ],
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts"
+    "dev": "npm run build && node dist/index.js",
+    "test": "npm run build && node --test",
+    "typecheck": "tsc --noEmit",
+    "prepack": "npm run build"
   },
   "keywords": [
     "github",
@@ -33,17 +37,13 @@
   "dependencies": {
     "chalk": "^4.1.2",
     "commander": "^12.1.0",
-    "groq-sdk": "^1.2.1",
-    "node-fetch": "^2.6.9",
-    "openai": "^4.52.0",
     "ora": "^5.4.1"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "ts-node": "^10.9.2",
     "typescript": "^5.4.0"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.14.0"
   }
 }

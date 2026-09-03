@@ -1,169 +1,48 @@
 # gh-ai-review
 
-> AI-powered GitHub Pull Request code reviewer — powered by **Hugging Face (Llama-3)**
+[![CI](https://github.com/turfin-logic/gh-ai-review/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/turfin-logic/gh-ai-review/actions/workflows/ci.yml)
 
-[![npm version](https://img.shields.io/npm/v/gh-ai-review.svg)](https://npmjs.com/package/gh-ai-review)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/turfin-logic/gh-ai-review?style=social)](https://github.com/turfin-logic/gh-ai-review)
+Experimental CLI for generating advisory pull-request reviews using Hugging Face. It displays a review locally by default and posts a COMMENT review only when `--post` is supplied. It never merges a PR. Model output is advice, not a security scan or an objective quality measurement.
 
-Review any Pull Request instantly with AI from your terminal. No more waiting for human reviewers — get instant feedback on bugs, security issues, performance, and code quality.
+## Run from source
 
----
+Requires Node.js 22.14+ and npm. An authenticated GitHub CLI is optional when a GitHub token is provided separately.
 
-## ✨ Features
-
-- 🧠 **AI-Powered** — Uses Llama-3.1-8B-Instruct via Hugging Face (completely free)
-- 🐛 **Bug Detection** — Spots logic errors, null pointers, async issues
-- 🔒 **Security Scanning** — Finds hardcoded secrets, injection vulnerabilities
-- ⚡ **Performance Analysis** — Detects memory leaks, blocking ops, N+1 queries
-- 📊 **Quality Score** — 0-100 score with APPROVE/REQUEST_CHANGES/COMMENT decision
-- 💬 **Inline Comments** — Posts directly on GitHub PR diff lines
-- 🤖 **GitHub Actions** — Auto-review every PR automatically
-- ⚡ **Works everywhere** — CLI + GitHub Actions + `gh` extension
-
----
-
-## Quick Start
-
-### Install
-
-```bash
-npm install -g gh-ai-review
+```sh
+git clone https://github.com/turfin-logic/gh-ai-review.git
+cd gh-ai-review
+npm ci --ignore-scripts
+npm run build
+node dist/index.js --help
 ```
 
-### Set API Keys
+Configure `GITHUB_TOKEN` (or `GH_TOKEN`, or `gh auth login`) and `HF_API_KEY` through your shell's environment. Grant the GitHub token only the repository access needed; posting requires permission to write PR reviews. Never put tokens in command arguments, README examples or source. Provider access, availability and costs depend on your Hugging Face account and chosen model.
 
-```bash
-# Get free access token from https://huggingface.co/settings/tokens
-export HF_API_KEY=your_token_here
-
-# GitHub token (already set if using gh CLI)
-export GITHUB_TOKEN=your_github_token
+```sh
+node dist/index.js review 123 --repo owner/repository
+node dist/index.js review 123 --repo owner/repository --post --dry-run
 ```
 
-### Review a PR
+These examples require a real accessible PR. `--dry-run` prevents posting, but still sends the diff to Hugging Face. Remove `--dry-run` only when you intend to post. The manual Actions workflow operates from trusted default-branch code and requires explicit dispatch.
 
-```bash
-# Review PR #42 locally (shows output in terminal)
-gh-ai-review review 42 --repo turfin-logic/my-project
+## Validation
 
-# Review and post result directly to GitHub PR
-gh-ai-review review 42 --repo turfin-logic/my-project --post
-
-# Dry run (see what would be posted)
-gh-ai-review review 42 --repo turfin-logic/my-project --post --dry-run
+```sh
+npm test
+npm run typecheck
+npm audit --audit-level=high
+npm pack --dry-run
 ```
 
----
+Tests mock network calls. They cover pagination, HTTP errors, structured output rejection, invalid/out-of-PR comments and partial-review disclosure. They do not establish model accuracy or live provider availability. The CI workflow is configured to run tests/type checking on Windows and Linux with Node 22.14 and 24.
 
-## 🤖 GitHub Action (Auto-review every PR)
+## Boundaries
 
-Add this to your repo at `.github/workflows/ai-review.yml`:
+- PR metadata, filenames and up to 8,000 diff characters are sent to Hugging Face. Private code therefore leaves GitHub; obtain the code owner's authorization before use.
+- Larger diffs are explicitly labeled PARTIAL REVIEW. This tool cannot claim to review the whole PR in that case.
+- Model responses must satisfy a runtime schema. Invalid data fails without posting; no synthetic passing score is created.
+- Model input can contain adversarial instructions. Treat output as untrusted and review it yourself. Validation is not proof of semantic correctness.
+- Inline comments may not map to valid diff lines; GitHub rejection falls back to a general advisory review.
+- Source install/build is documented here. Registry publication of these changes is a separate release step.
 
-```yaml
-name: AI Code Review
-
-on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-
-jobs:
-  ai-review:
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - run: npm install -g gh-ai-review
-      - run: gh-ai-review review ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --post
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HF_API_KEY: ${{ secrets.HF_API_KEY }}
-```
-
-> **Add secret:** Go to `Settings → Secrets → HF_API_KEY` in your repo.
-
----
-
-## 📊 Sample Output
-
-```
-╔═══════════════════════════════════════╗
-║        🤖 gh-ai-review v1.0.0         ║
-║   AI-powered PR review by Hugging Face    ║
-╚═══════════════════════════════════════╝
-
-✅ Fetched PR #42: "Add user authentication"
-🤖 Hugging Face is analyzing the code...
-✅ AI review complete!
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 REVIEW RESULT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-❌ Decision: REQUEST_CHANGES
-📈 Quality Score: 52/100
-
-📝 Summary:
-  This PR adds JWT authentication but has a critical security issue — 
-  the secret key is hardcoded in auth.ts line 15. Also missing rate 
-  limiting on the login endpoint.
-
-💬 Inline Comments (2):
-  [1] src/auth.ts:15
-  ⚠️ Hardcoded secret key detected! Move to environment variable: 
-  process.env.JWT_SECRET
-
-  [2] src/routes/login.ts:23
-  Missing rate limiting — this endpoint is vulnerable to brute force attacks.
-  Add express-rate-limit middleware.
-
-💡 Suggestions:
-  • Add unit tests for the authentication flow
-  • Consider using refresh tokens alongside access tokens
-```
-
----
-
-## ⚙️ Configuration
-
-| Env Variable | Required | Description |
-|---|---|---|
-| `HF_API_KEY` | ✅ Yes | Get free at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) |
-| `GITHUB_TOKEN` | ✅ Yes | GitHub personal access token or `gh auth login` |
-
-### Options
-
-```
-gh-ai-review review <pr-number> [options]
-
-Options:
-  -r, --repo <owner/repo>   Repository (default: auto-detect from git)
-  -m, --model <model>       Hugging Face model (default: meta-llama/Llama-3.1-8B-Instruct)
-  --post                    Post review to GitHub PR
-  --dry-run                 Preview without posting
-```
-
----
-
-## 🆓 Free API
-
-**Hugging Face offers free serverless inference APIs**.
-
-Get your token: [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
-
----
-
-## 📝 License
-
-MIT © [turfin-logic](https://github.com/turfin-logic)
-
----
-
-## Star this repo if it helped you!
-
-Built with ❤️ by [@turfin-logic](https://github.com/turfin-logic)
+Architecture: `src/index.ts` handles CLI orchestration, `github.ts` GitHub transport, `reviewer.ts` model calls, and `validation.ts` the output boundary. See [claim evidence](docs/claim-evidence.md). MIT license.
