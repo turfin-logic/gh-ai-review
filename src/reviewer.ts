@@ -1,4 +1,5 @@
 import { PRInfo, PRFile, ReviewResult } from './types.js';
+import { validateReview } from './validation.js';
 
 const REVIEW_PROMPT = `You are an expert senior software engineer doing a thorough code review. 
 Analyze the provided PR diff and give detailed, actionable feedback.
@@ -36,7 +37,7 @@ Score: 0-100 (>=80 = APPROVE, 60-79 = COMMENT, <60 = REQUEST_CHANGES)
 Respond ONLY with valid JSON, no markdown, no extra text.`;
 
 /**
- * Array of supported free Hugging Face models optimized for code review.
+ * Example model identifiers; availability and billing depend on the provider.
  * @constant {string[]}
  */
 const HF_MODELS = [
@@ -105,12 +106,9 @@ Respond with ONLY valid JSON. [/INST]`;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
-
         response = await fetch(this.baseUrl, {
           method: 'POST',
-          signal: controller.signal,
+          signal: AbortSignal.timeout(60000),
           headers: {
             'Authorization': `Bearer ${this.apiKey}`,
             'Content-Type': 'application/json',
@@ -122,15 +120,13 @@ Respond with ONLY valid JSON. [/INST]`;
             temperature: 0.2,
           }),
         });
-        clearTimeout(timeoutId);
-
         if (response.ok) {
           break; // Success
         }
 
         errText = await response.text();
-        // Only retry on 503 (Loading/Unavailable), 504 (Gateway Timeout), 524 (A timeout occurred)
-        if (![503, 504, 524].includes(response.status)) {
+        // Retry rate limiting and temporary provider failures.
+        if (![429, 503, 504, 524].includes(response.status)) {
           break; 
         }
       } catch (e: any) {
@@ -150,22 +146,19 @@ Respond with ONLY valid JSON. [/INST]`;
     const result = await response.json() as any;
     let content = result.choices?.[0]?.message?.content || result[0]?.generated_text || result.generated_text || '{}';
 
-    let parsedResult: ReviewResult;
-    try {
-      // Extract JSON from response
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      const jsonStr = jsonMatch ? jsonMatch[0] : content;
-      parsedResult = JSON.parse(jsonStr.trim());
-    } catch {
-      parsedResult = {
-        summary: content.substring(0, 500) || 'Review generated but could not be parsed.',
-        score: 70,
-        severity: 'COMMENT',
-        comments: [],
-        suggestions: ['Run again if the model was still loading.'],
-      };
+    // Accept a JSON object, optionally wrapped in a single Markdown code fence.
+    const jsonStr = String(content).trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+    let parsed: unknown;
+    try { parsed = JSON.parse(jsonStr); }
+    catch { throw new Error('Model did not return valid JSON; nothing will be posted.'); }
+    const review = validateReview(parsed);
+    const changedPaths = new Set(files.map(file => file.filename));
+    if (review.comments.some(comment => !changedPaths.has(comment.path))) {
+      throw new Error('Model commented on a file outside this PR; nothing will be posted.');
     }
-
-    return parsedResult;
+    if (diff.length > maxDiffLength) {
+      review.summary = `[PARTIAL REVIEW: first ${maxDiffLength} of ${diff.length} diff characters.] ${review.summary}`;
+    }
+    return review;
   }
 }

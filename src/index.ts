@@ -33,7 +33,7 @@ function getHFKey(): string {
     throw new Error(
       'Hugging Face API key not found!\n' +
       'Set HF_API_KEY env variable.\n' +
-      'Get your FREE key at: https://huggingface.co/settings/tokens'
+      'Create an API key at: https://huggingface.co/settings/tokens'
     );
   }
   return key;
@@ -85,7 +85,7 @@ function printResult(result: any) {
 
 program
   .name('gh-ai-review')
-  .description('AI-powered GitHub PR code reviewer using Hugging Face (Free)')
+  .description('AI-powered GitHub PR code reviewer using Hugging Face')
   .version('1.2.15');
 
 program
@@ -107,7 +107,7 @@ program
       // Get repo info
       let owner: string, repo: string;
       if (options.repo) {
-        [owner, repo] = options.repo.split('/');
+        ({ owner, repo } = GitHubClient.parseRepoUrl(options.repo));
       } else {
         try {
           const remoteUrl = execSync('git config --get remote.origin.url', { stdio: 'pipe' }).toString().trim();
@@ -122,8 +122,8 @@ program
         }
       }
 
-      const prNum = parseInt(prNumber, 10);
-      if (isNaN(prNum)) throw new Error(`Invalid PR number: ${prNumber}`);
+      const prNum = Number(prNumber);
+      if (!/^\d+$/.test(prNumber) || !Number.isSafeInteger(prNum) || prNum < 1) throw new Error(`Invalid PR number: ${prNumber}`);
 
       console.log(chalk.dim(`Repository: ${owner}/${repo}`));
       console.log(chalk.dim(`PR Number: #${prNum}`));
@@ -166,7 +166,7 @@ ${result.summary}
 ${result.suggestions?.length ? '### 💡 Suggestions\n' + result.suggestions.map((s: string) => `- ${s}`).join('\n') : ''}
 
 ---
-*Powered by Hugging Face AI (Free) • [Install gh-ai-review](https://github.com/turfin-logic/gh-ai-review)*`;
+*Powered by Hugging Face AI • [Install gh-ai-review](https://github.com/turfin-logic/gh-ai-review)*`;
 
         // Filter out invalid inline comments (need line numbers in diff)
         const validComments = result.comments?.filter((c: any) =>
@@ -218,7 +218,7 @@ program
     console.log(chalk.bold('Configuration Status:'));
     console.log(`  GitHub Token: ${githubOk ? chalk.green('✅ Set') : chalk.red('❌ Not set (set GITHUB_TOKEN)')}`);
     console.log(`  HF API Key:   ${hfOk ? chalk.green('✅ Set') : chalk.red('❌ Not set (set HF_API_KEY)')}`);
-    console.log('\nGet FREE HuggingFace key: ' + chalk.blue('https://huggingface.co/settings/tokens'));
+    console.log('\nGet HuggingFace key: ' + chalk.blue('https://huggingface.co/settings/tokens'));
     console.log('Get GitHub token:         ' + chalk.blue('https://github.com/settings/tokens'));
   });
 
